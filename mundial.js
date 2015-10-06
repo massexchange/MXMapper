@@ -4,6 +4,8 @@ var origFile = "Mundial LIVE DUMP.txt";
 var fixedFile = "mundial_fixed.json";
 var shortFile = "mundial_short.json";
 
+var mpId = 2;
+
 var columns = ["Publication", "Section", "Location", "AdSize"];
 
 var zip = function() {
@@ -46,7 +48,7 @@ fs.readFile(__dirname + '/' + fixedFile, (err, data) => {
     }, {});
 
     var mappings = Object.keys(protoMappings).map((adUnitName) => ({
-        mp: 2,
+        mp: { id: mpId },
         inputAttribute: {
             key: colName,
             value: adUnitName
