@@ -53,7 +53,13 @@ fs.readFile(__dirname + '/' + fixedFile, (err, data) => {
             key: colName,
             value: adUnitName
         },
-        outputAttributes: protoMappings[adUnitName]
+        outputAttributes: Object.keys(protoMappings[adUnitName])
+                            .map(function(type) {
+                                return {
+                                    key: type,
+                                    value: protoMappings[adUnitName][type]
+                                };
+                            })
     }));
 
     fs.writeFile("mappings.json", JSON.stringify(mappings));
