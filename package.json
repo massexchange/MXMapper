@@ -1,0 +1,19 @@
+{
+  "name": "import",
+  "version": "1.0.0",
+  "description": "",
+  "main": "coreMappings.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "JSONStream": "^1.0.7",
+    "map-stream": "0.0.6",
+    "nconf": "^0.8.4",
+    "progress-stream": "^1.2.0",
+    "stream-combiner": "^0.2.2",
+    "stream-reduce": "^1.0.3"
+  }
+}
