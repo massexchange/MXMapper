@@ -29,6 +29,11 @@ var parseName = (name) => zip(columns, name.split('/'))
 
 var colName = "Dimension.AD_UNIT_NAME";
 
+/*
+    drop: callback()
+    emit: callback(null, data)
+    error: callback(err)
+*/
 var map = f => mapStream((data, cb) => {
     try {
         cb(null, f(data));
@@ -59,5 +64,6 @@ transform((input, output) => {
                         key: type,
                         value: proto.values[type]
                     }))
-        }))).pipe(output);
+        })))
+        .pipe(output);
 });
