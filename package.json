@@ -18,6 +18,7 @@
     "request": "^2.69.0",
     "stream-combiner": "^0.2.2",
     "stream-reduce": "^1.0.3",
+    "through2": "^2.0.1",
     "through2-spy": "^2.0.0"
   }
 }

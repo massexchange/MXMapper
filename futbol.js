@@ -1,7 +1,9 @@
 var transform = require("./transform.js"),
+
     nconf = require("nconf"),
+
+    through2 = require("through2"),
     mapStream = require("map-stream"),
-    JSONStream = require("JSONStream");
     reduce = require("stream-reduce");
 
 var columns = ["Publication", "Section"];
@@ -43,6 +45,14 @@ var map = f => mapStream((data, cb) => {
     }
 });
 
+var flatMap = mapper => (arr, el) => arr.concat(mapper(el));
+
+var flatMapStream = mapper => through2({ objectMode: true }, function(obj, encoding, cb) {
+    mapper(obj).forEach(el => this.push(el))
+
+    return cb();
+});
+
 transform((input, output) => {
     input
         .pipe(map(raw => raw.attributes.filter(attr => attr.key == colName)[0].value))
@@ -52,18 +62,28 @@ transform((input, output) => {
             values: parseName(colValue)
         })))
         //transform to real mappings
-        .pipe(map(proto => ({
-            mp: { id: nconf.get("mp") },
-            inputAttribute: {
-                key: colName,
-                value: proto.adUnitName
-            },
-            outputAttributes:
-                Object.keys(proto.values)
-                    .map(type => ({
-                        key: type,
-                        value: proto.values[type]
-                    }))
-        })))
+        //reduce to a map to filter duplicates
+        .pipe(reduce((mappings, proto) => {
+            if(!mappings[proto.adUnitName])
+                mappings[proto.adUnitName] = {
+                    mp: { id: nconf.get("mp") },
+                    inputAttribute: {
+                        key: colName,
+                        value: proto.adUnitName
+                    },
+                    outputAttributes:
+                        Object.keys(proto.values)
+                            .map(type => ({
+                                key: type,
+                                value: proto.values[type]
+                            }))
+                };
+
+            return mappings;
+        }, {}))
+        .pipe(flatMapStream(mappings =>
+            Object.keys(mappings)
+                .reduce(flatMap(key => mappings[key]), [])
+        ))
         .pipe(output);
 });
