@@ -1,4 +1,5 @@
 var fs = require("fs"),
+    path = require("path"),
 
     nconf = require("nconf"),
     request = require("request"),
@@ -20,16 +21,8 @@ var LOG = message => console.log(message);
 var taskId = nconf.get("taskId");
 
 var sources = {
-    file: () => {
-        var path = __dirname + '/' + nconf.get("input");
-
-        LOG("Using file source:" + path);
-
-        return fs.createReadStream(path);
-    },
+    file: () => fs.createReadStream(path.resolve("./" + nconf.get("input"))),
     api: () => {
-        LOG("Using api source, task id: " + taskId);
-
         return request({
             url: "http://localhost:8080/acquisition/export/dump/" + taskId,
             headers: { "X-Auth-Token": nconf.get("token") }
@@ -41,11 +34,9 @@ var sources = {
     }
 }
 
-var source = sources[
-    taskId
-        ? "api"
-        : "files"
-]().pipe(JSONStream.parse("*"));
+var sourceType = taskId ? "api" : "files";
+LOG("Using " + sourceType + "source");
+var source = sources[sourceType]().pipe(JSONStream.parse("*"));
 
 var numRaws = nconf.get("numRaws");
 if(numRaws) {
