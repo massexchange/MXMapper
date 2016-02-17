@@ -35,17 +35,17 @@ var sources = {
 }
 
 var sourceType = taskId ? "api" : "files";
-LOG("Using " + sourceType + "source");
+LOG("Using " + sourceType + " source");
 var source = sources[sourceType]().pipe(JSONStream.parse("*"));
 
 var numRaws = nconf.get("numRaws");
 if(numRaws) {
-    var bar = new ProgressBar("generating mappings [:bar] :percent Speed: :speed raws/s", { total: numRaws });
+    var bar = new ProgressBar("generating mappings at :speed raws/s [:bar] :percent", { total: numRaws, incomplete: ' ' });
 
     // prog fields:
     // percentage, transferred, length, remaining, eta, runtime, delta, speed
     source = source.pipe(progStream({
-        time: 200,
+        time: 100,
         length: numRaws,
         objectMode: true
     }, prog => {
