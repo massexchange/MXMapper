@@ -1,10 +1,14 @@
 var fs = require("fs"),
+
     nconf = require("nconf"),
+    request = require("request"),
+    pluralize = require("pluralize"),
+    moment = require("moment"),
+
     JSONStream = require("JSONStream"),
     Combine = require("stream-combiner"),
-    progress = require("progress-stream"),
-    spy = require("through2-spy"),
-    request = require("request");
+    progStream = require("progress-stream"),
+    ProgressBar = require("progress");
 
 nconf.argv().defaults({
     input: "in.json",
@@ -24,14 +28,16 @@ var sources = {
         return fs.createReadStream(path);
     },
     api: () => {
-        var token = "49aeb3a5-2f1d-4bf6-872c-f3d1e2791486";
-
         LOG("Using api source, task id: " + taskId);
 
         return request({
             url: "http://localhost:8080/acquisition/export/dump/" + taskId,
-            headers: { "X-Auth-Token": token }
-        });
+            headers: { "X-Auth-Token": nconf.get("token") }
+        }).on("response", function(response) {
+            //if unautherized
+            if(response.statusCode == 401)
+                throw new Error("Token is invalid");
+        }).on("error", function(err) { throw new Error(JSON.stringify(err)); });
     }
 }
 
@@ -41,16 +47,25 @@ var source = sources[
         : "files"
 ]().pipe(JSONStream.parse("*"));
 
-//651356
 var numRaws = nconf.get("numRaws");
-if(numRaws)
-    source
-        .pipe(spy({ objectMode: true }, LOG))
-        .pipe(progress({
-            time: 3000,
-            length: numRaws,
-            objectMode: true
-        }, prog => LOG("Parsing " + Math.round(prog.percentage) + "% complete...")));
+if(numRaws) {
+    var bar = new ProgressBar("generating mappings [:bar] :percent Speed: :speed raws/s", { total: numRaws });
+
+    // prog fields:
+    // percentage, transferred, length, remaining, eta, runtime, delta, speed
+    source = source.pipe(progStream({
+        time: 200,
+        length: numRaws,
+        objectMode: true
+    }, prog => {
+        bar.tick(prog.delta, {
+            speed: Math.round(prog.speed)
+        });
+
+        if(prog.percentage == 100)
+            LOG("Generated mappings for " + pluralize("raw", numRaws, true) + " in " + moment.duration(prog.runtime, "s").humanize());
+    }))
+}
 
 module.exports = transform =>
     transform(
