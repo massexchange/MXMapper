@@ -9,7 +9,8 @@ var fs = require("fs"),
     JSONStream = require("JSONStream"),
     Combine = require("stream-combiner"),
     progStream = require("progress-stream"),
-    ProgressBar = require("progress");
+    ProgressBar = require("progress"),
+    spy = require("through2-spy");
 
 nconf.argv().defaults({
     input: "in.json",
@@ -40,7 +41,7 @@ var source = sources[sourceType]().pipe(JSONStream.parse("*"));
 
 var numRaws = nconf.get("numRaws");
 if(numRaws) {
-    var bar = new ProgressBar("generating mappings at :speed raws/s [:bar] :percent", { total: numRaws, incomplete: ' ' });
+    var bar = new ProgressBar("mapping at :speed raws/s [:bar] :percent", { total: numRaws, incomplete: ' ' });
 
     // prog fields:
     // percentage, transferred, length, remaining, eta, runtime, delta, speed
@@ -54,15 +55,18 @@ if(numRaws) {
         });
 
         if(prog.percentage == 100)
-            LOG("Generated mappings for " + pluralize("raw", numRaws, true) + " in " + moment.duration(prog.runtime, "s").humanize());
+            LOG("mapped " + pluralize("raw", numRaws, true) + " in " + moment.duration(prog.runtime, "s").humanize());
     }))
 }
 
-module.exports = transform =>
-    transform(
-        source,
-        Combine(
-            JSONStream.stringify(),
-            fs.createWriteStream(nconf.get("output"))
-        )
-    );
+var mappingsCount = 0;
+var resultCounter = spy(mapping => mappingsCount += 1)
+
+var sink = Combine(
+    JSONStream.stringify(),
+    resultCounter,
+    fs.createWriteStream(nconf.get("output"))
+        .on("finish", () => LOG("generated " + mappingsCount + " mappings"))
+);
+
+module.exports = transform => transform(source, sink);
