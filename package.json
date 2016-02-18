@@ -14,6 +14,7 @@
     "moment": "^2.11.2",
     "nconf": "^0.8.4",
     "pluralize": "^1.2.1",
+    "progress": "^1.1.8",
     "progress-stream": "^1.2.0",
     "request": "^2.69.0",
     "stream-combiner": "^0.2.2",
