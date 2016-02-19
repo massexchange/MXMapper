@@ -17,7 +17,9 @@ var colName = "Dimension.AD_UNIT_NAME";
 
 transform((input, output) => {
     input
-        .pipe(util.mapStream(raw => raw.attributes.filter(attr => attr.key == colName)[0].value))
+        .pipe(util.mapStream(raw =>
+            raw.attributes.filter(attr => attr.key == colName)[0].value
+        ))
         //create protoMappings
         .pipe(util.mapStream(colValue => ({
             adUnitName: colValue,
