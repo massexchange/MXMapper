@@ -5,6 +5,7 @@ var fs = require("fs"),
     request = require("request"),
     pluralize = require("pluralize"),
     moment = require("moment"),
+    humanize = require("humanize-duration"),
 
     JSONStream = require("JSONStream"),
     Combine = require("stream-combiner"),
@@ -39,23 +40,34 @@ var sourceType = taskId ? "api" : "files";
 LOG("Using " + sourceType + " source");
 var source = sources[sourceType]().pipe(JSONStream.parse("*"));
 
+
 var numRaws = nconf.get("numRaws");
 if(numRaws) {
-    var bar = new ProgressBar("mapping at :speed raws/s [:bar] :percent", { total: numRaws, incomplete: ' ' });
+    var bar = new ProgressBar("mapping at :speed raws/s, should be done in around :estimate [:bar] :percent ", {
+        total: numRaws,
+        incomplete: ' ',
+        clear: true,
+        width: 60
+    });
+
+    var toMillis = s => s * 1000;
+    var humanizeSeconds = s => humanize(toMillis(s));
 
     // prog fields:
     // percentage, transferred, length, remaining, eta, runtime, delta, speed
     source = source.pipe(progStream({
         time: 100,
+        speed: 10,
         length: numRaws,
         objectMode: true
     }, prog => {
         bar.tick(prog.delta, {
-            speed: Math.round(prog.speed)
+            speed: Math.round(prog.speed),
+            estimate: humanizeSeconds(prog.eta)
         });
 
         if(prog.percentage == 100)
-            LOG("mapped " + pluralize("raw", numRaws, true) + " in " + moment.duration(prog.runtime, "s").humanize());
+            LOG("mapped " + pluralize("raw", numRaws, true) + " in " + humanizeSeconds(prog.runtime));
     }))
 }
 
