@@ -14,9 +14,8 @@ var fs = require("fs"),
     spy = require("through2-spy");
 
 nconf.argv().defaults({
-    input: "in.json",
-    output: "out.json"
-});
+    input: "in.json"
+}).use("memory");
 
 var LOG = message => console.log(message);
 
@@ -33,9 +32,18 @@ var throwError = function(err) {
     throw new Error(JSON.stringify(err));
 };
 
+var getHost = () => {
+    var subDomain = nconf.get("subDomain");
+    return subDomain
+        ? subDomain + ".massexchange.com/api"
+        : "localhost:8080";
+};
+
 var sources = {
     file: cb => cb(fs.createReadStream(path.resolve("./" + nconf.get("input")))),
     api: cb => {
+        var host = getHost();
+
         var getRaws = token => cb(request({
             url: "http://" + host + "/acquisition/export/dump/" + taskId,
             headers: { "X-Auth-Token": token }
@@ -44,11 +52,6 @@ var sources = {
             if(response.statusCode == 401)
                 throw new Error("Token is invalid");
         }).on("error", throwError));
-
-        var subDomain = nconf.get("subDomain");
-        var host = subDomain
-            ? subDomain + ".massexchange.com/api"
-            : "localhost:8080";
 
         var token = nconf.get("token");
         if(!token) {
@@ -71,12 +74,30 @@ var sources = {
                         throw new Error("Could not connect to server");
                     else throwError(err);
 
+                nconf.set("token", credentials.token);
                 getRaws(credentials.token);
             });
         } else
             getRaws(token);
     }
 };
+
+var getSink = () => {
+    var outputFile = nconf.get("output");
+    if(outputFile) {
+        console.log("saving mappings to file");
+        return fs.createWriteStream(outputFile);
+    }
+
+    console.log("pushing mappings to api");
+
+    return request({
+        method: "POST",
+        json: true,
+        url: "http://" + getHost() + "/mappings/batch",
+        headers: { "X-Auth-Token": nconf.get("token") }
+    });
+}
 
 var sourceType = taskId ? "api" : "files";
 LOG("Using " + sourceType + " source");
@@ -119,7 +140,7 @@ sources[sourceType](source => {
     var sink = Combine(
         JSONStream.stringify(),
         resultCounter,
-        fs.createWriteStream(nconf.get("output"))
+        getSink()
             .on("finish", () => LOG("generated " + mappingsCount + " mappings"))
     );
 
