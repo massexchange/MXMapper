@@ -3,6 +3,7 @@ var fs = require("fs"),
 
     nconf = require("nconf"),
     request = require("request"),
+    requestPromise = require("request-promise"),
     pluralize = require("pluralize"),
     moment = require("moment"),
     humanize = require("humanize-duration"),
@@ -11,7 +12,9 @@ var fs = require("fs"),
     Combine = require("stream-combiner"),
     progStream = require("progress-stream"),
     ProgressBar = require("progress"),
-    spy = require("through2-spy");
+    spy = require("through2-spy"),
+
+    Promise = require("bluebird");
 
 nconf.argv().defaults({
     input: "in.json"
@@ -40,20 +43,12 @@ var getHost = () => {
 };
 
 var sources = {
-    file: cb => cb(fs.createReadStream(path.resolve("./" + nconf.get("input")))),
-    api: cb => {
+    file: () => Promise.resolve(fs.createReadStream(path.resolve("./" + nconf.get("input")))),
+    api: () => {
         var host = getHost();
 
-        var getRaws = token => cb(request({
-            url: "http://" + host + "/acquisition/export/dump/" + taskId,
-            headers: { "X-Auth-Token": token }
-        }).on("response", function(response) {
-            //if unautherized
-            if(response.statusCode == 401)
-                throw new Error("Token is invalid");
-        }).on("error", throwError));
-
         var token = nconf.get("token");
+        var tokenP;
         if(!token) {
             var username = getOrThrow("username");
             var password = getOrThrow("password");
@@ -63,24 +58,39 @@ var sources = {
                 password: password
             };
 
-            request({
+            tokenP = requestPromise({
                 url: "http://" + host + "/session",
                 method: "POST",
                 json: true,
                 body: creds
-            }, (err, res, credentials) => {
-                if(err)
-                    if(err.code == "ECONNREFUSED")
-                        throw new Error("Could not connect to server");
-                    else throwError(err);
-
-                nconf.set("token", credentials.token);
-                getRaws(credentials.token);
+            }).get("token")
+            .then(token => {
+                nconf.set("token", token);
+            }).catch(err => {
+                if(err.code == "ECONNREFUSED")
+                    throw new Error("Could not connect to server");
+                else throwError(err);
             });
         } else
-            getRaws(token);
+            tokenP = Promise.resolve(token);
+
+        return tokenP.then(token =>
+            request({
+                url: "http://" + host + "/acquisition/export/dump/" + taskId,
+                headers: { "X-Auth-Token": token }
+            }).on("response", function(response) {
+                //if unautherized
+                if(response.statusCode == 401)
+                    throw new Error("Token is invalid");
+            }).on("error", throwError)
+        );
     }
 };
+
+var getRawCount = task => requestPromise({
+    url: `http://" + host + "/acquisition/export/${task.id}/count`,
+    headers: { "X-Auth-Token": nconf.get("token") }
+});
 
 var getSink = () => {
     var outputFile = nconf.get("output");
@@ -101,10 +111,11 @@ var getSink = () => {
 
 var sourceType = taskId ? "api" : "files";
 LOG("Using " + sourceType + " source");
-sources[sourceType](source => {
+sources[sourceType]().then(source => {
     source = source.pipe(JSONStream.parse("*"))
 
     var numRaws = nconf.get("numRaws");
+    //TODO: implement getRawCount
     if(numRaws) {
         var bar = new ProgressBar("mapping at :speed raws/s [:bar] :percent ETA: :estimate", {
             total: numRaws,
