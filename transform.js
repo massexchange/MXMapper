@@ -63,10 +63,9 @@ var sources = {
                 method: "POST",
                 json: true,
                 body: creds
-            }).get("token")
-            .then(token => {
-                nconf.set("token", token);
-            }).catch(err => {
+            }).promise().get("token")
+            .tap(token => nconf.set("token", token))
+            .catch(err => {
                 if(err.code == "ECONNREFUSED")
                     throw new Error("Could not connect to server");
                 else throwError(err);
@@ -76,7 +75,7 @@ var sources = {
 
         return tokenP.then(token =>
             request({
-                url: "http://" + host + "/acquisition/export/dump/" + taskId,
+                url: `http://${getHost()}/acquisition/export/dump/${taskId}`,
                 headers: { "X-Auth-Token": token }
             }).on("response", function(response) {
                 //if unautherized
@@ -86,11 +85,6 @@ var sources = {
         );
     }
 };
-
-var getRawCount = task => requestPromise({
-    url: `http://" + host + "/acquisition/export/${task.id}/count`,
-    headers: { "X-Auth-Token": nconf.get("token") }
-});
 
 var getSink = () => {
     var outputFile = nconf.get("output");
@@ -107,44 +101,51 @@ var getSink = () => {
         url: "http://" + getHost() + "/mappings/batch",
         headers: { "X-Auth-Token": nconf.get("token") }
     });
-}
+};
 
-var sourceType = taskId ? "api" : "files";
-LOG("Using " + sourceType + " source");
-sources[sourceType]().then(source => {
-    source = source.pipe(JSONStream.parse("*"))
-
+var tryGetNumRaws = () => {
     var numRaws = nconf.get("numRaws");
-    //TODO: implement getRawCount
-    if(numRaws) {
-        var bar = new ProgressBar("mapping at :speed raws/s [:bar] :percent ETA: :estimate", {
-            total: numRaws,
-            incomplete: ' ',
-            clear: true,
-            width: 60
+    if(numRaws)
+        return Promise.resolve(numRaws);
+
+    return requestPromise({
+        url: `http://${getHost()}/acquisition/export/${nconf.get("taskId")}/count`,
+        headers: { "X-Auth-Token": nconf.get("token") }
+    });
+};
+
+var trackProgress = (stream, numRaws) => {
+    console.log(numRaws);
+    var bar = new ProgressBar("mapping at :speed raws/s [:bar] :percent ETA: :estimate", {
+        total: numRaws,
+        incomplete: ' ',
+        clear: true,
+        width: 60
+    });
+
+    var toMillis = s => s * 1000;
+    var humanizeSeconds = s => humanize(toMillis(s));
+
+    // prog fields:
+    // percentage, transferred, length, remaining, eta, runtime, delta, speed
+    return stream.pipe(progStream({
+        time: 100,
+        speed: 10,
+        length: numRaws,
+        objectMode: true
+    }, prog => {
+        bar.tick(prog.delta, {
+            speed: Math.round(prog.speed),
+            estimate: humanizeSeconds(prog.eta)
         });
 
-        var toMillis = s => s * 1000;
-        var humanizeSeconds = s => humanize(toMillis(s));
+        if(prog.percentage == 100)
+            LOG("mapped " + pluralize("raw", numRaws, true) + " in " + humanizeSeconds(prog.runtime));
+    }));
+};
 
-        // prog fields:
-        // percentage, transferred, length, remaining, eta, runtime, delta, speed
-        source = source.pipe(progStream({
-            time: 100,
-            speed: 10,
-            length: numRaws,
-            objectMode: true
-        }, prog => {
-            bar.tick(prog.delta, {
-                speed: Math.round(prog.speed),
-                estimate: humanizeSeconds(prog.eta)
-            });
-
-            if(prog.percentage == 100)
-                LOG("mapped " + pluralize("raw", numRaws, true) + " in " + humanizeSeconds(prog.runtime));
-        }))
-    }
-
+var caller;
+var connectSource = source => {
     var mappingsCount = 0;
     var resultCounter = spy(mapping => mappingsCount += 1)
 
@@ -156,7 +157,15 @@ sources[sourceType]().then(source => {
     );
 
     caller(source, sink);
-});
+};
 
-var caller;
+var sourceType = taskId ? "api" : "files";
+LOG("Using " + sourceType + " source");
+sources[sourceType]().call("pipe", JSONStream.parse("*"))
+    .then(source => tryGetNumRaws()
+        .then(numRaws => trackProgress(source, numRaws))
+        .catchReturn(source)
+        .then(connectSource)
+    );
+
 module.exports = transform => caller = transform;
