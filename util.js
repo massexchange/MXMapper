@@ -39,4 +39,6 @@ exports.flatMapStream = mapper => through2({ objectMode: true }, function(obj, e
     return cb();
 });
 
+exports.tokenHeader = token => ({ "X-Auth-Token": token });
+
 module.exports = exports;

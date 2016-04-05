@@ -15,8 +15,8 @@ var parseName = (name) => util.zip(columns, name.split('/'))
 
 var colName = "Dimension.AD_UNIT_NAME";
 
-transform((input, output) => {
-    input
+transform().then(({ source, sink }) => {
+    source
         .pipe(util.mapStream(raw =>
             raw.attributes.filter(attr => attr.key == colName)[0].value
         ))
@@ -49,5 +49,5 @@ transform((input, output) => {
             Object.keys(mappings)
                 .reduce(util.flatMapReducer(key => mappings[key]), [])
         ))
-        .pipe(output);
+        .pipe(sink);
 });
