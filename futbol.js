@@ -58,11 +58,11 @@ var flatMapper = util.flatMapStream(mappings =>
         .reduce(util.flatMapReducer(key => mappings[key]), [])
 );
 
-prepare().then(({ source, sink }) => {
+prepare().then(({ source, sink }) =>
     source
         .pipe(columnExtractor)
         .pipe(protoMapper)
         .pipe(mappingReducer)
         .pipe(flatMapper)
-        .pipe(sink);
-});
+        .pipe(sink)
+);
