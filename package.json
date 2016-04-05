@@ -21,7 +21,7 @@
     "progress-stream": "^1.2.0",
     "request": "^2.69.0",
     "request-promise": "^2.0.1",
-    "stream-combiner2": "^1.1.1",
+    "stream-combiner2": "^1.0.2",
     "stream-reduce": "^1.0.3",
     "through2": "^2.0.1",
     "through2-spy": "^2.0.0"
