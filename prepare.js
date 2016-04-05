@@ -1,5 +1,6 @@
 var fs = require("fs"),
     path = require("path"),
+    mkdirp = require("mkdirp"),
 
     nconf = require("nconf"),
     request = require("request"),
@@ -24,7 +25,7 @@ var LOG = message => console.log(message);
 var getHost = () => {
     var subDomain = nconf.get("subDomain");
     return subDomain
-        ? subDomain + ".massexchange.com/api"
+        ? `${subDomain}.massexchange.com/api`
         : "localhost:8080";
 };
 
@@ -34,26 +35,42 @@ var sources = {
 };
 
 var getSource = () => {
-    var sourceType = nconf.get("taskId") ? "api" : "files";
-    LOG("using " + sourceType + " source");
+    var sourceType = nconf.get("taskId")
+        ? "api"
+        : "files";
 
+    LOG(`using ${sourceType} source`);
     return sources[sourceType]().call("pipe", JSONStream.parse("*"));
 };
 
-var getSink = doneCb => {
-    var outputFile = nconf.get("output");
-    if(outputFile) {
-        LOG("saving mappings to file...");
-        return fs.createWriteStream(outputFile).on("finish", doneCb);
-    }
+var sinks = {
+    file: (outputFile, cb) => {
+        var outPath = path.join(__dirname, "out");
+        return new Promise((resolve, reject) => mkdirp(outPath, err => {
+            if(err)
+                reject(new Error(err));
 
-    return request({
+            resolve(fs.createWriteStream(path.join(outPath, outputFile))
+                .on("pipe", () => LOG("saving mappings to file..."))
+                .on("finish", cb)
+            );
+        }))
+    },
+    api: cb => Promise.resolve(request({
         method: "POST",
         json: true,
         url: `http://${getHost()}/mappings/batch`,
-        headers: util.tokenHeader(nconf.get("token"))
-    }).on("request", () => LOG("pushing mappings to api..."))
-    .on("end", doneCb);
+        headers: Object.assign({ "Content-Type": "application/json" }, util.tokenHeader(nconf.get("token")))
+    }).on("pipe", () => LOG("pushing mappings to api..."))
+    .on("end", cb))
+};
+
+var getSink = cb => {
+    var outputFile = nconf.get("output");
+    if(outputFile)
+        return sinks.file(outputFile, cb);
+
+    return sinks.api(cb);
 };
 
 var getNumRaws = () => {
@@ -78,17 +95,20 @@ var tryTrackProgress = source => {
         });
 };
 
-var caller;
 var connectSource = source => {
     var mappingsCount = 0;
 
-    var sink = Combine(
-        JSONStream.stringify(),
-        spy(mapping => mappingsCount++),
-        getSink(() => LOG(`generated ${mappingsCount} mappings`))
-    );
+    return getSink(() => LOG(`generated ${mappingsCount} mappings`))
+        .then(outStream => {
+            var sink = Combine(
+                JSONStream.stringify(),
+                spy(mapping => mappingsCount++),
+                outStream
+            );
 
-    return { source, sink };
+            return { source, sink };
+        })
+        // .catchThrow(new Error("something went wrong saving results"));
 };
 
 module.exports = () => getSource()
