@@ -50,13 +50,13 @@ var sinks = {
             if(err)
                 reject(new Error(err));
 
-            resolve(fs.createWriteStream(path.join(outPath, outputFile))
+            resolve(() => fs.createWriteStream(path.join(outPath, outputFile))
                 .on("pipe", () => LOG("saving mappings to file..."))
                 .on("finish", cb)
             );
         }))
     },
-    api: cb => Promise.resolve(request({
+    api: cb => Promise.resolve(() => request({
         method: "POST",
         json: true,
         url: `http://${getHost()}/mappings/batch`,
@@ -99,16 +99,15 @@ var connectSource = source => {
     var mappingsCount = 0;
 
     return getSink(() => LOG(`generated ${mappingsCount} mappings`))
-        .then(outStream => {
-            var sink = Combine(
+        .then(sinkGetter => ({
+            source,
+            sink: Combine(
                 JSONStream.stringify(),
                 spy(mapping => mappingsCount++),
-                outStream
-            );
-
-            return { source, sink };
-        })
-        // .catchThrow(new Error("something went wrong saving results"));
+                new require("stream").PassThrough()
+                    .on("pipe", src => src.pipe(sinkGetter()))
+            )
+        }));
 };
 
 module.exports = () => getSource()
