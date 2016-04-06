@@ -1,10 +1,10 @@
 {
-  "name": "import",
-  "version": "1.0.0",
-  "description": "",
-  "main": "coreMappings.js",
+  "name": "MXMapper",
+  "version": "0.0.1",
+  "description": "inventory mapping tool for MX",
+  "main": "prepare.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "start": "npm install && node --harmony-destructuring"
   },
   "author": "",
   "license": "ISC",
