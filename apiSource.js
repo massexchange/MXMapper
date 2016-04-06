@@ -33,7 +33,9 @@ module.exports = (host, LOG) => {
                 method: "POST",
                 json: true,
                 body: { username, password }
-            }).promise().get("token")
+            }).promise()
+              .tap(creds => nconf.set("mp", creds.user.mp.id))
+              .get("token")
               .tap(token => nconf.set("token", token))
               .catch(err => {
                 if(err.code == "ECONNREFUSED")
