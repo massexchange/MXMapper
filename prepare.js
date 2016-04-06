@@ -7,6 +7,7 @@ var fs = require("fs"),
     requestPromise = require("request-promise"),
     moment = require("moment"),
 
+    PassThroughStream = require("stream").PassThrough,
     JSONStream = require("JSONStream"),
     Combine = require("stream-combiner"),
     spy = require("through2-spy"),
@@ -46,24 +47,32 @@ var getSource = () => {
 var sinks = {
     file: (outputFile, cb) => {
         var outPath = path.join(__dirname, "out");
+
+        // return a promise that is resolved after directory exists
         return new Promise((resolve, reject) => mkdirp(outPath, err => {
             if(err)
                 reject(new Error(err));
 
+            // see (1)
             resolve(() => fs.createWriteStream(path.join(outPath, outputFile))
-                .on("pipe", () => LOG("saving mappings to file..."))
+                .on("pipe", src => LOG("saving mappings to file..."))
                 .on("finish", cb)
             );
         }))
     },
+    // see (1)
     api: cb => Promise.resolve(() => request({
         method: "POST",
         json: true,
         url: `http://${getHost()}/mappings/batch`,
-        headers: Object.assign({ "Content-Type": "application/json" }, util.tokenHeader(nconf.get("token")))
-    }).on("pipe", () => LOG("pushing mappings to api..."))
-    .on("end", cb))
+        headers: Object.assign(
+                    { "Content-Type": "application/json" },
+                    util.tokenHeader(nconf.get("token"))
+                ) // merge headers
+    }).on("pipe", src => LOG("pushing mappings to api..."))
+      .on("end", cb))
 };
+// (1) the promises are resolved with a getter so that the streams are opened exactly when they're needed
 
 var getSink = cb => {
     var outputFile = nconf.get("output");
@@ -74,8 +83,6 @@ var getSink = cb => {
 };
 
 var getNumRaws = () => {
-    //LOG("attempting to determine number of raws...");
-
     var numRaws = nconf.get("numRaws");
     if(numRaws)
         return Promise.resolve(numRaws);
@@ -86,16 +93,12 @@ var getNumRaws = () => {
     }).then(stringNum => parseInt(stringNum, 10));
 };
 
-var tryTrackProgress = source => {
-    return getNumRaws()
+var tryTrackProgress = source =>
+    getNumRaws()
         .then(progress(source, LOG))
-        .catch(() => {
-            //LOG("could not determine");
-            return source;
-        });
-};
+        .catch(() => source);
 
-var connectSource = source => {
+var connectSink = source => {
     var mappingsCount = 0;
 
     return getSink(() => LOG(`generated ${mappingsCount} mappings`))
@@ -104,7 +107,8 @@ var connectSource = source => {
             sink: Combine(
                 JSONStream.stringify(),
                 spy(mapping => mappingsCount++),
-                new require("stream").PassThrough()
+                new PassThroughStream()
+                    // placeholder stream, replaced with sink on pipe
                     .on("pipe", src => src.pipe(sinkGetter()))
             )
         }));
@@ -112,4 +116,4 @@ var connectSource = source => {
 
 module.exports = () => getSource()
     .then(tryTrackProgress)
-    .then(connectSource);
+    .then(connectSink);
