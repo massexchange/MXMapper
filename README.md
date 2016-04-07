@@ -20,7 +20,6 @@ you use the tools provided.
 
 #### Parse single column
 
-
 The simplest case is where you only care about the contents of a single column, in which the values
 are seperated by one consistent character.
 
@@ -76,11 +75,7 @@ module.exports = ({ colName, columns, seperator }) => {
             .pipe(sink)
     );
 }
-
 ```
-
-
-
 
 ### Usage
 
