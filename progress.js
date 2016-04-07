@@ -15,14 +15,14 @@ module.exports = (stream, LOG) => numRaws => {
     var toMillis = s => s * 1000;
     var humanizeSeconds = s => humanize(toMillis(s));
 
-    // prog fields:
-    // percentage, transferred, length, remaining, eta, runtime, delta, speed
     return stream.pipe(progStream({
         time: 100,
         speed: 10,
         length: numRaws,
         objectMode: true
     }, prog => {
+        // prog fields:
+        // percentage, transferred, length, remaining, eta, runtime, delta, speed
         bar.tick(prog.delta, {
             speed: Math.round(prog.speed),
             estimate: humanizeSeconds(prog.eta)
