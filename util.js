@@ -3,19 +3,26 @@ var through2 = require("through2"),
 
 var exports = {};
 
-exports.zip = function() {
-        var lists = Array.prototype.slice.call(arguments);
-        var longest = lists.reduce(function(max, list) {
-            return Math.max(list.length, max);
-        }, 0);
+exports.zip = (...lists) => {
+    var longest = lists.reduce((max, list) => Math.max(list.length, max), 0);
 
-        var out = [];
-        for(var pos = 0; pos < longest; pos++)
-            out.push(lists.map(function(list) {
-                return list[pos];
-            }));
-        return out;
-    };
+    var out = [];
+    for(var pos = 0; pos < longest; pos++)
+        out.push(lists.map(list => list[pos]));
+
+    return out;
+};
+
+exports.parseName = (name, seperator) =>
+    //create protoAttr kvps
+    util.zip(columns, name.split(seperator))
+        //filter out value-less protoAttrs
+        .filter(tuple => tuple.every(x => x))
+        //convert tuples to map
+        .reduce((out, tuple) => {
+            out[tuple[0]] = tuple[1];
+            return out;
+        }, {});
 
 /*
     drop: callback()
