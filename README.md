@@ -92,19 +92,12 @@ npm start <script> -- [--option value] ... [--option value]
 ```
 The `--` tells `npm` to pass the options to the called script.
 
-#### General
-
-You must supply an `mpId` option.
-
-For progress to be reported, either the `numRaws` option must be supplied, or the `Acqusition`
-raw count endpoint must be available.
-
 #### Input
 
 Raws can be read either from a `JSON` file or from the `Acquisition` API.
 
 Options required:
-   - **file**: `input`
+   - **file**: `input` `mpId`
    - **api**: `username` `password` `taskId`
 
 #### Output
@@ -113,3 +106,8 @@ Mappings can be output to a `JSON` file or to the `Mapping` API.
 
 Options required:
    - **file**: `output`
+
+#### Progress
+
+For progress to be reported, either the `numRaws` option must be supplied, or the `Acqusition`
+raw count endpoint must be available.
