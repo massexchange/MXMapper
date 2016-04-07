@@ -1,5 +1,6 @@
 var through2 = require("through2"),
-    mapStream = require("map-stream");
+    mapStream = require("map-stream"),
+    reduce = require("stream-reduce");
 
 var exports = {};
 
@@ -13,17 +14,6 @@ exports.zip = () => {
 
     return out;
 };
-
-exports.parseName = (name, seperator) =>
-    //create protoAttr kvps
-    util.zip(columns, name.split(seperator))
-        //filter out value-less protoAttrs
-        .filter(tuple => tuple.every(x => x))
-        //convert tuples to map
-        .reduce((out, tuple) => {
-            out[tuple[0]] = tuple[1];
-            return out;
-        }, {});
 
 /*
     drop: callback()
@@ -46,6 +36,55 @@ exports.flatMapStream = mapper => through2.obj(function(obj, encoding, cb) {
 
     return cb();
 });
+
+//extract relevant column
+exports.columnExtractor = colName => exports.mapStream(raw =>
+    raw.attributes.filter(attr => attr.key == colName)[0].value
+);
+
+exports.parseName = (name, columns, seperator) =>
+    //create protoAttr kvps
+    exports.zip(columns)
+        //filter out value-less protoAttrs
+        .filter(tuple => tuple.every(x => x))
+        //convert tuples to map
+        .reduce((out, tuple) => {
+            out[tuple[0]] = tuple[1];
+            return out;
+        }, {});
+
+//create protoMappings
+exports.protoMapper = (columns, seperator) => exports.mapStream(colValue => ({
+    adUnitName: colValue,
+    values: exports.parseName(colValue, columns, seperator)
+}));
+
+//transform to real mappings
+//reduce to a map to filter duplicates
+exports.mappingReducer = (colName, mpId) => reduce((mappings, proto) => {
+    if(!mappings[proto.adUnitName])
+        mappings[proto.adUnitName] = {
+            mp: { id: mpId },
+            inputAttribute: {
+                key: colName,
+                value: proto.adUnitName
+            },
+            outputAttributes:
+                //convert protoMappings
+                Object.keys(proto.values)
+                    .map(type => ({
+                        key: type,
+                        value: proto.values[type]
+                    }))
+        };
+
+    return mappings;
+}, {});
+
+exports.flatMapper = () => exports.flatMapStream(mappings =>
+    Object.keys(mappings)
+        .reduce(exports.flatMapReducer(key => mappings[key]), [])
+);
 
 exports.tokenHeader = token => ({ "X-Auth-Token": token });
 
