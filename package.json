@@ -1,7 +1,7 @@
 {
   "name": "MXMapper",
   "version": "0.0.1",
-  "description": "inventory mapping tool for MX",
+  "description": "inventory mapping tool",
   "main": "prepare.js",
   "scripts": {
     "start": "node --harmony-destructuring"
