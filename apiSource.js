@@ -38,7 +38,7 @@ module.exports = (host, LOG) => {
               .get("token")
               .tap(token => nconf.set("token", token))
               .catch(err => {
-                if(err.code == "ECONNREFUSED")
+                if(err.error.code == "ECONNREFUSED")
                     throw new Error("Could not connect to server");
 
                 else throwError(err);
