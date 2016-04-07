@@ -3,7 +3,8 @@ var through2 = require("through2"),
 
 var exports = {};
 
-exports.zip = (...lists) => {
+exports.zip = () => {
+    var lists = Array.prototype.slice.call(arguments);
     var longest = lists.reduce((max, list) => Math.max(list.length, max), 0);
 
     var out = [];

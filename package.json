@@ -4,7 +4,7 @@
   "description": "inventory mapping tool for MX",
   "main": "prepare.js",
   "scripts": {
-    "start": "node --harmony-destructuring --harmony_rest_parameters"
+    "start": "node --harmony-destructuring"
   },
   "repository": "https://github.com/massexchange/MXMapper",
   "author": "",
