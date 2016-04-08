@@ -3,41 +3,17 @@ var prepare = require("./prepare"),
 
     nconf = require("nconf");
 
-var isAdSize = str => {
-	var retval = false;
-	var splitstr = str.split("_");
+var isPagePosition = segment => util.contains(["ATF", "BTF"], segment);
+var isAdSize = segment => segment.length > 4 && util.contains([segment[3], segment[4]], 'x');
 
-	splitstr.forEach(segment => {
-		//ifs seperate for readability
-		if(segment == "ATF" || segment == "BTF")
-			retval = true;
-		if(segment.length > 4 && (segment[3] == 'x' || segment [4]=='x'))
-			retval = true;
-	});
-	return retval;
-};
+var parsePagePosition = colValue => colValue.split("_").filter(isPagePosition)[0];
+var parseAdSize = colValue => colValue.split("_").filter(isAdSize)[0];
 
-var parsePagePosition = str => {
-	var retval = 0;
-
-	str.split("_").forEach(segment => {
-		if (segment == "ATF" || segment == "BTF")
-			retval = segment;
-	});
-
-	return retval;
-};
-
-var parseAdSize = str => {
-	var retval = 0;
-
-	str.split("_").forEach(segment => {
-		if(segment.length > 4 && (segment[3]=='x'||segment[4]=='x'))
-			retval = segment;
-	});
-
-	return retval;
-};
+var hasAdSize = colValue =>
+    colValue.split("_").some(segment =>
+        isPagePosition(segment) ||
+        isAdSize(segment)
+    );
 
 var parse = source => {
 	var attrs = Object.keys(source.attributes)
@@ -45,60 +21,44 @@ var parse = source => {
 			key: type,
 			value: source.attributes[type]
 		}))
-		.filter(attr => attr.key.indexOf("ID") == -1);
+		.filter(attr => !util.contains(attr.key, "ID"));
 
 	var output = [];
 
 	//Ad units 3 and 4 are the ones that vary in fareportal land.
 	//Possibly different for other clients (Futbol only has depth 2, for example)
-	attrs.forEach(attr => {
-		if(attr.key == "Ad unit 3") {
-			var thingToPush = {
-                colName: attr.key,
-                colValue: attr.value,
-                values: {}
-            };
+    var importantAttrs = {
+        "Ad unit 3": (mapping, attr) => mapping.values["SubSection"] = attr.value,
+        "Ad unit 4": (mapping, attr) => {
+            console.log("Well then. This shouldn't happen");
+            console.log(attr);
+        }
+    };
 
-			if(isAdSize(attr.value)) {
-				var size = parseAdSize(attr.value);
-				var pos = parsePagePosition(attr.value);
+    var mapAdUnit = attr => {
+        var mapping = {
+            colName: attr.key,
+            colValue: attr.value,
+            values: {}
+        };
 
-				if(size != 0)
-					thingToPush.values["AdSize"] = size;
-				if(pos != 0)
-					thingToPush.values["PagePosition"] = pos;
-			}
-			else
-				thingToPush.values["SubSection"] = attr.value;
+        if(hasAdSize(attr.value)) {
+            var size = parseAdSize(attr.value);
+            var pos = parsePagePosition(attr.value);
 
-			output.push(thingToPush);
-		}
-		else if(attr.key == "Ad unit 4") {
-			var thingToPush = {
-                colName: attr.key,
-                colValue: attr.value,
-                values: {}
-            };
+            if(size != 0)
+                mapping.values["AdSize"] = size;
+            if(pos != 0)
+                mapping.values["PagePosition"] = pos;
+        }
+        else
+            importantAttrs[attr.key](mapping, attr);
 
-			if(isAdSize(attr.value)) {
-				var size = parseAdSize(attr.value);
-				var pos = parsePagePosition(attr.value);
+        return mapping;
+    };
 
-				if (size != 0)
-					thingToPush.values["AdSize"] = size;
-				if (pos != 0)
-					thingToPush.values["PagePosition"] = pos;
-			}
-			else {
-				console.log("Well then. This shouldn't happen");
-				console.log(attr);
-			}
-
-			output.push(thingToPush);
-		}
-	});
-
-	return output;
+	return attrs.filter(attr => util.contains(Object.keys(importantAttrs), attr.key))
+        .map(mapAdUnit);
 };
 
 var protoKey = proto => proto.colName + ':' + proto.colValue;
