@@ -28,6 +28,7 @@ module.exports = (stream, LOG) => numRaws => {
             estimate: humanizeSeconds(prog.eta)
         });
 
+        //TODO: extract to cb for performance boost
         if(prog.percentage == 100)
             LOG(`mapped ${pluralize("raw", numRaws, true)} in ${humanizeSeconds(prog.runtime)}`);
     }));

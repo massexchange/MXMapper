@@ -32,7 +32,7 @@ exports.mapStream = f => mapStream((data, cb) => {
 exports.flatMapReducer = mapper => (arr, el) => arr.concat(mapper(el));
 
 exports.flatMapStream = mapper => through2.obj(function(obj, encoding, cb) {
-    mapper(obj).forEach(el => this.push(el))
+    mapper(obj).forEach(el => this.push(el));
 
     return cb();
 });
