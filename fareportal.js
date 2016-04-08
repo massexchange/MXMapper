@@ -1,8 +1,7 @@
 var prepare = require("./prepare"),
     util = require("./util"),
 
-    nconf = require("nconf"),
-    reduce = require("stream-reduce");
+    nconf = require("nconf");
 
 var isAdSize = str => {
 	var retval = false;
@@ -54,7 +53,11 @@ var parse = source => {
 	//Possibly different for other clients (Futbol only has depth 2, for example)
 	attrs.forEach(attr => {
 		if(attr.key == "Ad unit 3") {
-			var thingToPush = { colName:attr.key, colValue:attr.value, values:{} };
+			var thingToPush = {
+                colName: attr.key,
+                colValue: attr.value,
+                values: {}
+            };
 
 			if(isAdSize(attr.value)) {
 				var size = parseAdSize(attr.value);
@@ -71,7 +74,11 @@ var parse = source => {
 			output.push(thingToPush);
 		}
 		else if(attr.key == "Ad unit 4") {
-			var thingToPush = { colName:attr.key, colValue:attr.value, values:{} };
+			var thingToPush = {
+                colName: attr.key,
+                colValue: attr.value,
+                values: {}
+            };
 
 			if(isAdSize(attr.value)) {
 				var size = parseAdSize(attr.value);
@@ -86,6 +93,7 @@ var parse = source => {
 				console.log("Well then. This shouldn't happen");
 				console.log(attr);
 			}
+
 			output.push(thingToPush);
 		}
 	});
@@ -97,29 +105,12 @@ var protoKey = proto => proto.colName + ':' + proto.colValue;
 
 prepare().then(({ source, sink }) => {
     source
-        //create protoMappings
         .pipe(util.flatMapStream(parse))
-        //transform to real mappings
-        //reduce to a map to filter duplicates
-        .pipe(reduce((mappings, proto) => {
-            var key = protoKey(proto);
-            if(!mappings[key])
-                mappings[key] = {
-                    mp: { id: nconf.get("mp") },
-                    inputAttribute: {
-                        key: proto.colName,
-                        value: proto.colValue
-                    },
-                    outputAttributes:
-                        Object.keys(proto.values)
-                            .map(type => ({
-                                key: type,
-                                value: proto.values[type]
-                            }))
-                };
-
-            return mappings;
-        }, {}))
+        .pipe(util.mappingReducer(
+            proto => proto.colName,
+            proto => proto.colValue,
+            protoKey,
+            nconf.get("mp")))
         .pipe(util.flatMapper())
         .pipe(sink);
 });

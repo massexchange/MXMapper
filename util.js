@@ -37,6 +37,11 @@ exports.flatMapStream = mapper => through2.obj(function(obj, encoding, cb) {
     return cb();
 });
 
+exports.flatMapper = () => exports.flatMapStream(mappings =>
+    Object.keys(mappings)
+        .reduce(exports.flatMapReducer(key => mappings[key]), [])
+);
+
 //extract relevant column
 exports.columnExtractor = colName => exports.mapStream(raw =>
     raw.attributes.filter(attr => attr.key == colName)[0].value
@@ -61,13 +66,14 @@ exports.protoMapper = (columns, seperator) => exports.mapStream(colValue => ({
 
 //transform to real mappings
 //reduce to a map to filter duplicates
-exports.mappingReducer = (colName, mpId) => reduce((mappings, proto) => {
-    if(!mappings[proto.adUnitName])
-        mappings[proto.adUnitName] = {
+exports.mappingReducer = (colName, colValue, protoKey, mpId) => reduce((mappings, proto) => {
+    var key = protoKey(proto);
+    if(!mappings[key])
+        mappings[key] = {
             mp: { id: mpId },
             inputAttribute: {
-                key: colName,
-                value: proto.adUnitName
+                key: colName(proto),
+                value: colValue(proto)
             },
             outputAttributes:
                 //convert protoMappings
@@ -80,11 +86,6 @@ exports.mappingReducer = (colName, mpId) => reduce((mappings, proto) => {
 
     return mappings;
 }, {});
-
-exports.flatMapper = () => exports.flatMapStream(mappings =>
-    Object.keys(mappings)
-        .reduce(exports.flatMapReducer(key => mappings[key]), [])
-);
 
 exports.tokenHeader = token => ({ "X-Auth-Token": token });
 
