@@ -38,7 +38,7 @@ var sources = {
 var getSource = () => {
     var sourceType = nconf.get("taskId")
         ? "api"
-        : "files";
+        : "file";
 
     LOG(`using ${sourceType} source`);
     return sources[sourceType]().call("pipe", JSONStream.parse("*"));
