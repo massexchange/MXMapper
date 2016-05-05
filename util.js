@@ -6,8 +6,7 @@ var exports = {};
 
 exports.contains = (arr, val) => arr.indexOf(val) >= 0;
 
-exports.zip = () => {
-    var lists = Array.prototype.slice.call(arguments);
+exports.zip = (...lists) => {
     var longest = lists.reduce((max, list) => Math.max(list.length, max), 0);
 
     var out = [];
@@ -51,7 +50,7 @@ exports.columnExtractor = colName => exports.mapStream(raw =>
 
 exports.parseName = (name, columns, seperator) =>
     //create protoAttr kvps
-    exports.zip(columns)
+    exports.zip(columns, name.split(seperator))
         //filter out value-less protoAttrs
         .filter(tuple => tuple.every(x => x))
         //convert tuples to map

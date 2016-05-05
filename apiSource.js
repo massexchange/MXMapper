@@ -16,34 +16,35 @@ var getOrThrow = name => {
     return option;
 };
 
+var getToken = (host, LOG) => {
+    var username = getOrThrow("username");
+    var password = getOrThrow("password");
+
+    LOG(`logging in as ${username}...`);
+    return requestPromise({
+        url: `http://${host}/session`,
+        method: "POST",
+        json: true,
+        body: { username, password }
+    }).promise()
+      .tap(creds => nconf.set("mp", creds.user.mp.id))
+      .get("token")
+      .tap(token => nconf.set("token", token))
+      .catch(err => {
+        if(err.error.code == "ECONNREFUSED")
+            throw new Error("Could not connect to server");
+
+        else throwError(err);
+    });
+};
+
 module.exports = (host, LOG) => {
     var taskId = nconf.get("taskId");
     var token = nconf.get("token");
 
     return (token
         ? Promise.resolve(token)
-        // get the token if we dont have it
-        : () => {
-            var username = getOrThrow("username");
-            var password = getOrThrow("password");
-
-            LOG(`logging in as ${username}...`);
-            return requestPromise({
-                url: `http://${host}/session`,
-                method: "POST",
-                json: true,
-                body: { username, password }
-            }).promise()
-              .tap(creds => nconf.set("mp", creds.user.mp.id))
-              .get("token")
-              .tap(token => nconf.set("token", token))
-              .catch(err => {
-                if(err.error.code == "ECONNREFUSED")
-                    throw new Error("Could not connect to server");
-
-                else throwError(err);
-            });
-        }()
+        : getToken(host, LOG)
     ).then(token => {
         return request({
             url: `http://${host}/acquisition/export/dump/${taskId}`,
